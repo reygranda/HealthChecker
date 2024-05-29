@@ -7,11 +7,14 @@ const port = 5000;
 app.use(cors());
 app.use(express.json());
 
-const API_KEY = "YOUR_PLAUSIBLE_API_KEY";
+const API_KEY =
+  "j2QK-k4n_TiwTCrMk5AK--svtM9AoXkdM5Ii5dcQdgqUQQRn4Sgfon4Asxc2ZLFk";
 const BASE_URL = "https://plausible.io/api/v1/stats";
 
 app.get("/api/stats", async (req, res) => {
   const { siteId, startDate, endDate, pageUrl } = req.query;
+
+  console.log("Fetching data for:", { siteId, startDate, endDate, pageUrl });
 
   try {
     // Fetch aggregate data
@@ -62,7 +65,44 @@ app.get("/api/stats", async (req, res) => {
       source.time_on_page = sourceTimeData.value || 0;
     }
 
-    res.json({ page_specific: aggregateData, sources: breakdownData });
+    // Fetch entry pages with specific filters
+    const entryParams = {
+      site_id: siteId,
+      period: "custom",
+      date: `${startDate},${endDate}`,
+      property: "visit:entry_page",
+      filters: `event:page==${pageUrl}`,
+      metrics: "visitors",
+      limit: 5,
+    };
+    const entryResponse = await axios.get(`${BASE_URL}/breakdown`, {
+      headers: { Authorization: `Bearer ${API_KEY}` },
+      params: entryParams,
+    });
+    const entryData = entryResponse.data.results;
+
+    // Fetch exit pages with specific filters
+    const exitParams = {
+      site_id: siteId,
+      period: "custom",
+      date: `${startDate},${endDate}`,
+      property: "visit:exit_page",
+      filters: `event:page==${pageUrl}`,
+      metrics: "visitors",
+      limit: 5,
+    };
+    const exitResponse = await axios.get(`${BASE_URL}/breakdown`, {
+      headers: { Authorization: `Bearer ${API_KEY}` },
+      params: exitParams,
+    });
+    const exitData = exitResponse.data.results;
+
+    res.json({
+      page_specific: aggregateData,
+      sources: breakdownData,
+      entry_pages: entryData,
+      exit_pages: exitData,
+    });
   } catch (error) {
     console.error(
       "Error fetching data:",
